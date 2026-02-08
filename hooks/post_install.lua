@@ -23,27 +23,35 @@ function PLUGIN:PostInstall(ctx)
     -- But Android SDK expects: ANDROID_HOME/cmdline-tools/VERSION/bin/sdkmanager
     -- So we need to reorganize: move rootPath/* to rootPath/cmdline-tools/VERSION/
 
+    -- Detect OS (Windows uses backslash as path separator)
+    local os_type = RUNTIME.osType
+
     local temp_path = root_path .. "-temp"
     local target_path = file.join_path(root_path, "cmdline-tools", version)
 
-    -- Move current rootPath to temp location
-    os.execute("mv " .. root_path .. " " .. temp_path)
+    if os_type == "windows" then
+        local cmdline_tools = file.join_path(root_path, "cmdline-tools", version)
+        os.execute('mkdir "' .. cmdline_tools .. '" 2>nul')
 
-    -- Recreate rootPath with proper structure
-    os.execute("mkdir -p " .. target_path)
-
-    -- Move contents from temp to target
-    os.execute("mv " .. temp_path .. "/* " .. target_path .. "/")
-
-    -- Clean up temp
-    os.execute("rm -rf " .. temp_path)
-
-    -- Verify installation
-    local sdkmanager_path = file.join_path(target_path, "bin", "sdkmanager")
-    if not file.exists(sdkmanager_path) then
-        error("Installation verification failed: sdkmanager not found at " .. sdkmanager_path)
+        -- Mover TODO excepto cmdline-tools
+        os.execute('robocopy "' .. root_path .. '" "' .. cmdline_tools .. '" /E /MOVE ' ..
+                       '/XF cmdline-tools /XD cmdline-tools >nul')
+    else
+        -- Unix/Linux/macOS commands
+        -- Move current rootPath to temp location
+        local target_path = file.join_path(root_path, "cmdline-tools", version)
+        os.execute("mkdir -p " .. target_path)
+        os.execute("mv " .. root_path .. "/* " .. target_path .. "/")
     end
 
-    -- Make sure binaries are executable (for Unix systems)
-    os.execute("chmod +x " .. file.join_path(target_path, "bin", "*") .. " 2>/dev/null || true")
+    -- Verify installation
+    local sdkmanager = "sdkmanager"
+    if os_type == "windows" then
+        sdkmanager = "sdkmanager.bat"
+    end
+
+    local sdkmanager_path = file.join_path(target_path, "bin", sdkmanager)
+    if not file.exists(sdkmanager_path) then
+        error("sdkmanager not found at " .. sdkmanager_path)
+    end
 end

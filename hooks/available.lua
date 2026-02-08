@@ -30,9 +30,50 @@ function PLUGIN:Available(ctx)
         end
     end
 
-    -- Sort versions (simple string sort, works for numeric versions)
+    -- Sort versions semantically (newest first)
     table.sort(versions, function(a, b)
-        return a.version < b.version
+        local function parse_version(v)
+            local parts = {}
+            local suffix = ""
+            
+            -- Extract suffix like -alpha01, -rc01
+            local main, suf = v:match("^([%d%.]+)(.*)$")
+            if main then
+                suffix = suf or ""
+                -- Split version by dots
+                for num in main:gmatch("(%d+)") do
+                    table.insert(parts, tonumber(num))
+                end
+            else
+                table.insert(parts, 0)
+            end
+            
+            return parts, suffix
+        end
+        
+        local parts_a, suffix_a = parse_version(a.version)
+        local parts_b, suffix_b = parse_version(b.version)
+        
+        -- Compare version parts numerically
+        local max_parts = math.max(#parts_a, #parts_b)
+        for i = 1, max_parts do
+            local num_a = parts_a[i] or 0
+            local num_b = parts_b[i] or 0
+            if num_a ~= num_b then
+                return num_a > num_b  -- Descending order (newest first)
+            end
+        end
+        
+        -- If version numbers are equal, compare suffixes
+        -- Versions without suffix come before versions with suffix
+        -- (e.g., 16.0 > 16.0-alpha01)
+        if suffix_a == "" and suffix_b ~= "" then
+            return true
+        elseif suffix_a ~= "" and suffix_b == "" then
+            return false
+        else
+            return suffix_a > suffix_b
+        end
     end)
 
     return versions
